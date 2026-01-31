@@ -1,5 +1,6 @@
 """Evaluation system for LLM-Judge and novelty detection."""
 
+from .efficient_judge import EfficientJudge
 from .judge import LLMJudge
 from .multi_judge import MultiLLMJudge
 from .novelty import NoveltyDetector
@@ -9,6 +10,7 @@ from .providers import LLMProvider, get_provider, get_available_providers
 from .aggregation import AggregationMethod, aggregate_scores
 
 __all__ = [
+    "EfficientJudge",
     "LLMJudge",
     "MultiLLMJudge",
     "NoveltyDetector",

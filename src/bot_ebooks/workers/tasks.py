@@ -4,7 +4,10 @@ This module provides both synchronous Celery tasks and async helper functions
 for running evaluations. For Phase 1, we also provide a simple async runner
 that can be triggered directly (useful for development and testing).
 
-Supports both single-evaluator (legacy) and multi-evaluator modes.
+Supports three evaluation modes:
+- efficient (default): Single Haiku call, ~8k tokens, ~46x cheaper
+- single: Single Sonnet call with full prompts
+- multi: Multiple providers/personas (most expensive)
 """
 
 import asyncio
@@ -14,6 +17,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..db.session import AsyncSessionLocal
+from ..evaluation.efficient_judge import EfficientJudge
 from ..evaluation.judge import LLMJudge
 from ..evaluation.multi_judge import MultiLLMJudge
 from ..models.ebook import Ebook, EbookStatus
@@ -22,7 +26,7 @@ from ..models.evaluation import EvaluationStatus
 
 async def run_evaluation(
     ebook_id: UUID,
-    use_multi_evaluator: bool = True,
+    mode: str = "efficient",  # "efficient", "single", or "multi"
 ) -> dict:
     """
     Run evaluation for an ebook asynchronously.
@@ -32,10 +36,18 @@ async def run_evaluation(
 
     Args:
         ebook_id: UUID of the ebook to evaluate
-        use_multi_evaluator: If True, use multi-provider/persona evaluation
+        mode: Evaluation mode:
+            - "efficient" (default): Single Haiku call, ~8k tokens total
+            - "single": Single Sonnet call with full prompts
+            - "multi": Multiple providers/personas (most expensive)
 
     Returns:
         Dict with evaluation results
+
+    Token usage comparison:
+        - efficient: ~8,000 tokens per evaluation
+        - single: ~40,000 tokens per evaluation
+        - multi: ~380,000 tokens per evaluation (10 API calls)
     """
     async with AsyncSessionLocal() as db:
         # Get the ebook
@@ -48,11 +60,13 @@ async def run_evaluation(
         if ebook.status not in [EbookStatus.PENDING_EVALUATION, EbookStatus.EVALUATING]:
             return {"error": f"Ebook {ebook_id} is not pending evaluation"}
 
-        # Run evaluation with appropriate judge
-        if use_multi_evaluator:
+        # Select judge based on mode
+        if mode == "multi":
             judge = MultiLLMJudge(db)
-        else:
+        elif mode == "single":
             judge = LLMJudge(db)
+        else:  # "efficient" (default)
+            judge = EfficientJudge(db)
 
         try:
             evaluation = await judge.evaluate_ebook(ebook)
@@ -64,10 +78,17 @@ async def run_evaluation(
                 if evaluation.overall_score
                 else None,
                 "published": ebook.status == EbookStatus.PUBLISHED,
+                "mode": mode,
             }
 
+            # Add token usage if available (efficient judge tracks this)
+            if evaluation.raw_llm_response:
+                if "input_tokens" in evaluation.raw_llm_response:
+                    result_data["input_tokens"] = evaluation.raw_llm_response["input_tokens"]
+                    result_data["output_tokens"] = evaluation.raw_llm_response["output_tokens"]
+
             # Add multi-evaluator metadata if available
-            if use_multi_evaluator and evaluation.evaluator_count:
+            if mode == "multi" and evaluation.evaluator_count:
                 result_data["evaluator_count"] = evaluation.evaluator_count
                 result_data["aggregation_method"] = evaluation.aggregation_method
 
@@ -82,7 +103,7 @@ async def run_evaluation(
 
 async def process_pending_evaluations(
     limit: int = 10,
-    use_multi_evaluator: bool = True,
+    mode: str = "efficient",
 ) -> list[dict]:
     """
     Process all pending evaluations.
@@ -91,7 +112,7 @@ async def process_pending_evaluations(
 
     Args:
         limit: Maximum number of evaluations to process
-        use_multi_evaluator: If True, use multi-provider/persona evaluation
+        mode: Evaluation mode ("efficient", "single", or "multi")
 
     Returns:
         List of evaluation results
@@ -112,10 +133,7 @@ async def process_pending_evaluations(
             await db.commit()
 
             # Run evaluation
-            eval_result = await run_evaluation(
-                ebook.id,
-                use_multi_evaluator=use_multi_evaluator,
-            )
+            eval_result = await run_evaluation(ebook.id, mode=mode)
             results.append(eval_result)
 
         return results
