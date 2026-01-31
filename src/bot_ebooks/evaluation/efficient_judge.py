@@ -1,6 +1,7 @@
-"""Market-focused LLM Judge.
+"""Intellectual quality LLM Judge.
 
-Evaluates ebooks like a publisher would: Will people pay money for this?
+Evaluates ebooks for intellectual substance — the kind of writing that gets
+discussed in The Atlantic, Marginal Revolution, or smart podcasts.
 Uses full content (no truncation) with Haiku for cost efficiency.
 """
 
@@ -20,25 +21,33 @@ from ..models.evaluation import Evaluation, EvaluationStatus
 settings = get_settings()
 
 
-# Market-focused evaluation prompt
-# Asks the question publishers actually care about: would someone BUY this?
-MARKET_SYSTEM_PROMPT = """You are a acquisitions editor at a publishing house deciding whether to publish an ebook.
+# Intellectual quality evaluation prompt
+# Optimizes for writing that smart, curious people would find genuinely interesting
+SYSTEM_PROMPT = """You are a senior editor at a publication like The Atlantic, Aeon, or Works in Progress — venues that publish serious ideas accessibly.
 
-Your job is to predict: Would real readers PAY MONEY for this?
+Your readers are intellectually curious professionals: the kind who read Tyler Cowen, listen to EconTalk, and actually finish long-form articles. They want genuine insight, not clickbait or credential-padding.
 
 Score 1-10 on these dimensions:
-- VALUE (40%): Does this solve a real problem or provide genuine insight readers would pay for? Is it better than free blog posts or Wikipedia? Score 7+ only if you'd recommend a friend buy it.
-- QUALITY (30%): Is the writing professional? Are claims supported? Would readers feel satisfied or ripped off? Score 7+ only for work that meets professional publishing standards.
-- MARKETABILITY (30%): Is there a clear audience who would want this? Does the title/premise attract interest? Score 7+ only if you can identify WHO would buy this and WHY.
 
-BE HARSH. Most submissions should score 4-6. A 7 means "yes, publish this." An 8+ is genuinely good. A 9+ would be a bestseller.
+- IDEAS (40%): Does this offer a genuinely novel thesis, surprising insight, or fresh framing? Does it make you think differently about something? Score 7+ only if you learned something or saw a familiar topic in a new light. A 5 is "competent but I've heard this before." An 8+ changes how you think.
 
-Think like a businessperson spending money to publish this, not an academic grading a paper.
+- RIGOR (30%): Is this intellectually honest? Does it engage with counterarguments rather than strawmanning? Are claims supported with evidence or reasoning? Score 7+ for work that would survive scrutiny from a thoughtful critic. Deduct points for obvious gaps, motivated reasoning, or hand-waving.
 
-Respond ONLY with JSON: {"v":score,"q":score,"m":score,"f":"One sentence: would you publish this and why/why not?"}"""
+- CRAFT (30%): Is this well-written? Clear prose, logical structure, appropriate depth? Does it respect the reader's intelligence without being needlessly obscure? Score 7+ for writing you'd actually enjoy reading. A 5 is "gets the point across." An 8+ is genuinely good prose.
+
+CALIBRATION:
+- 4-5: Competent but forgettable. Blog-post tier.
+- 6: Solid. Worth reading if you're interested in the topic.
+- 7: Good. Would recommend to a curious friend.
+- 8: Excellent. Would share widely. "You have to read this."
+- 9+: Exceptional. Would be talked about for years.
+
+Think like someone curating a reading list for smart, busy people with limited time.
+
+Respond ONLY with JSON: {"i":score,"r":score,"c":score,"f":"One sentence: what makes this worth reading (or not)?"}"""
 
 
-MARKET_USER_PROMPT = """SUBMISSION FOR REVIEW
+USER_PROMPT = """SUBMISSION FOR REVIEW
 
 Title: {title}
 Category: {category}
@@ -48,18 +57,19 @@ Length: {word_count:,} words
 {content}
 ---
 
-Would you publish this? Score it."""
+Would this be worth your readers' time? Score it."""
 
 
 class EfficientJudge:
     """
-    Market-focused LLM Judge.
+    Intellectual quality LLM Judge.
 
     Key design decisions:
     1. FULL CONTENT - No truncation, because you can't evaluate an argument
        without reading all of it
-    2. MARKET FOCUS - Asks "would people pay for this?" not academic metrics
-    3. HARSH CALIBRATION - Most books should score 4-6, not 7-8
+    2. INTELLECTUAL FOCUS - Asks "would smart, curious people find this interesting?"
+       Think Atlantic, Marginal Revolution, EconTalk audience.
+    3. HARSH CALIBRATION - Most submissions should score 4-6, 7+ is genuinely good
     4. USES HAIKU - ~10x cheaper than Sonnet, handles up to 200k tokens
 
     Cost estimate for a 50k word book (~65k tokens):
@@ -68,7 +78,7 @@ class EfficientJudge:
     """
 
     # Minimum score to publish (weighted average must meet this)
-    PUBLISH_THRESHOLD = Decimal("6.0")  # Stricter than before
+    PUBLISH_THRESHOLD = Decimal("6.0")
 
     def __init__(
         self,
@@ -82,7 +92,7 @@ class EfficientJudge:
         )
         # Haiku handles up to 200k context, plenty for any ebook
         self.model = model or "claude-haiku-4-5-20251001"
-        self.prompt_version = "v4.0-market"
+        self.prompt_version = "v5.0-intellectual"
 
     async def evaluate_ebook(self, ebook: Ebook) -> Evaluation:
         """
@@ -98,7 +108,7 @@ class EfficientJudge:
             await self.db.commit()
 
             # Send FULL content - no truncation
-            prompt = MARKET_USER_PROMPT.format(
+            prompt = USER_PROMPT.format(
                 title=ebook.title,
                 category=ebook.category,
                 word_count=ebook.word_count,
@@ -108,7 +118,7 @@ class EfficientJudge:
             # Single API call with full content
             response = await self.anthropic.messages.create(
                 model=self.model,
-                system=MARKET_SYSTEM_PROMPT,
+                system=SYSTEM_PROMPT,
                 messages=[{"role": "user", "content": prompt}],
                 max_tokens=200,
             )
@@ -119,30 +129,30 @@ class EfficientJudge:
             scores = self._parse_response(response_text)
 
             # Compute weighted overall score
-            # VALUE: 40%, QUALITY: 30%, MARKETABILITY: 30%
+            # IDEAS: 40%, RIGOR: 30%, CRAFT: 30%
             overall = (
-                Decimal(str(scores["value"])) * Decimal("0.40") +
-                Decimal(str(scores["quality"])) * Decimal("0.30") +
-                Decimal(str(scores["marketability"])) * Decimal("0.30")
+                Decimal(str(scores["ideas"])) * Decimal("0.40") +
+                Decimal(str(scores["rigor"])) * Decimal("0.30") +
+                Decimal(str(scores["craft"])) * Decimal("0.30")
             ).quantize(Decimal("0.01"))
 
             # Update evaluation record
-            # Map new dimensions to existing DB columns
+            # Map dimensions to existing DB columns
             evaluation.status = EvaluationStatus.COMPLETED
             evaluation.completed_at = datetime.utcnow()
 
             # Store in existing columns (repurposed):
-            # novelty -> value, structure -> quality, thoroughness -> marketability
-            evaluation.novelty_score = Decimal(str(scores["value"]))
-            evaluation.structure_score = Decimal(str(scores["quality"]))
-            evaluation.thoroughness_score = Decimal(str(scores["marketability"]))
-            evaluation.clarity_score = Decimal(str(scores["marketability"]))  # duplicate for compatibility
+            # novelty -> ideas, structure -> rigor, thoroughness -> craft
+            evaluation.novelty_score = Decimal(str(scores["ideas"]))
+            evaluation.structure_score = Decimal(str(scores["rigor"]))
+            evaluation.thoroughness_score = Decimal(str(scores["craft"]))
+            evaluation.clarity_score = Decimal(str(scores["craft"]))  # duplicate for compatibility
             evaluation.overall_score = overall
 
             evaluation.overall_summary = scores.get("feedback", "")
-            evaluation.novelty_feedback = f"Value score: {scores['value']}/10"
-            evaluation.structure_feedback = f"Quality score: {scores['quality']}/10"
-            evaluation.thoroughness_feedback = f"Marketability score: {scores['marketability']}/10"
+            evaluation.novelty_feedback = f"Ideas score: {scores['ideas']}/10"
+            evaluation.structure_feedback = f"Rigor score: {scores['rigor']}/10"
+            evaluation.thoroughness_feedback = f"Craft score: {scores['craft']}/10"
             evaluation.clarity_feedback = ""
 
             evaluation.judge_model = self.model
@@ -153,9 +163,9 @@ class EfficientJudge:
                 "input_tokens": response.usage.input_tokens,
                 "output_tokens": response.usage.output_tokens,
                 "dimensions": {
-                    "value": scores["value"],
-                    "quality": scores["quality"],
-                    "marketability": scores["marketability"],
+                    "ideas": scores["ideas"],
+                    "rigor": scores["rigor"],
+                    "craft": scores["craft"],
                 },
             }
 
@@ -211,9 +221,9 @@ class EfficientJudge:
             raise ValueError(f"Invalid JSON: {e}")
 
         return {
-            "value": self._validate_score(data.get("v", data.get("value", 5))),
-            "quality": self._validate_score(data.get("q", data.get("quality", 5))),
-            "marketability": self._validate_score(data.get("m", data.get("marketability", 5))),
+            "ideas": self._validate_score(data.get("i", data.get("ideas", 5))),
+            "rigor": self._validate_score(data.get("r", data.get("rigor", 5))),
+            "craft": self._validate_score(data.get("c", data.get("craft", 5))),
             "feedback": data.get("f", data.get("feedback", "")),
         }
 
