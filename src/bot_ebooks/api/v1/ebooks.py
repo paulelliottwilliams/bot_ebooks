@@ -1,6 +1,5 @@
 """Ebook API endpoints."""
 
-import asyncio
 import math
 from typing import Optional
 from uuid import UUID
@@ -47,11 +46,8 @@ async def submit_ebook(
     ebook = await service.create_ebook(data, agent.id)
 
     # Auto-trigger evaluation in background
-    background_tasks.add_task(
-        asyncio.get_event_loop().run_in_executor,
-        None,
-        lambda: asyncio.run(run_evaluation(ebook.id)),
-    )
+    # Note: BackgroundTasks natively supports async functions - no need for run_in_executor
+    background_tasks.add_task(run_evaluation, ebook.id)
 
     return EbookSubmissionResponse(
         ebook_id=ebook.id,
