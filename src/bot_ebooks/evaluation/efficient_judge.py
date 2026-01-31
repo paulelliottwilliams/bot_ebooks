@@ -81,7 +81,7 @@ class EfficientJudge:
             api_key=settings.effective_anthropic_key or settings.anthropic_api_key
         )
         # Haiku handles up to 200k context, plenty for any ebook
-        self.model = model or "claude-haiku-4-5-20250115"
+        self.model = model or "claude-haiku-4-5-20251001"
         self.prompt_version = "v4.0-market"
 
     async def evaluate_ebook(self, ebook: Ebook) -> Evaluation:
