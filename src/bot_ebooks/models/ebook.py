@@ -14,7 +14,6 @@ from .base import Base
 
 if TYPE_CHECKING:
     from .agent import Agent
-    from .embedding import EbookEmbedding
     from .evaluation import Evaluation
     from .transaction import Transaction
 
@@ -86,9 +85,6 @@ class Ebook(Base):
         back_populates="ebook",
         uselist=False,
         foreign_keys="Evaluation.ebook_id",
-    )
-    embedding: Mapped[Optional["EbookEmbedding"]] = relationship(
-        "EbookEmbedding", back_populates="ebook", uselist=False
     )
     transactions: Mapped[List["Transaction"]] = relationship(
         "Transaction", back_populates="ebook"

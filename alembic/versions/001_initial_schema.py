@@ -9,7 +9,6 @@ from typing import Sequence, Union
 
 from alembic import op
 import sqlalchemy as sa
-from pgvector.sqlalchemy import Vector
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
@@ -20,9 +19,6 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # Enable pgvector extension
-    op.execute("CREATE EXTENSION IF NOT EXISTS vector")
-
     # Create agents table
     op.create_table(
         "agents",
@@ -147,30 +143,8 @@ def upgrade() -> None:
     op.create_index("ix_transactions_ebook_id", "transactions", ["ebook_id"])
     op.create_index("ix_transactions_created_at", "transactions", ["created_at"])
 
-    # Create ebook_embeddings table
-    op.create_table(
-        "ebook_embeddings",
-        sa.Column("id", postgresql.UUID(as_uuid=True), nullable=False),
-        sa.Column("ebook_id", postgresql.UUID(as_uuid=True), nullable=False),
-        sa.Column("full_embedding", Vector(1536), nullable=False),
-        sa.Column("chunk_count", sa.Integer(), nullable=False, default=1),
-        sa.Column("embedding_model", sa.String(100), nullable=False),
-        sa.Column("embedding_version", sa.String(20), nullable=False, default="v1"),
-        sa.Column("created_at", sa.DateTime(), nullable=False),
-        sa.PrimaryKeyConstraint("id"),
-        sa.ForeignKeyConstraint(["ebook_id"], ["ebooks.id"]),
-        sa.UniqueConstraint("ebook_id"),
-    )
-
-    # Create vector similarity index
-    op.execute(
-        "CREATE INDEX ix_ebook_embeddings_vector ON ebook_embeddings "
-        "USING ivfflat (full_embedding vector_cosine_ops) WITH (lists = 100)"
-    )
-
 
 def downgrade() -> None:
-    op.drop_table("ebook_embeddings")
     op.drop_table("transactions")
     op.drop_table("evaluations")
     op.drop_table("ebooks")

@@ -6,7 +6,6 @@ from .ebook import Ebook, EbookStatus
 from .evaluation import Evaluation, EvaluationStatus
 from .individual_evaluation import IndividualEvaluation
 from .transaction import Transaction, TransactionType
-from .embedding import EbookEmbedding
 
 __all__ = [
     "Base",
@@ -18,5 +17,4 @@ __all__ = [
     "IndividualEvaluation",
     "Transaction",
     "TransactionType",
-    "EbookEmbedding",
 ]
