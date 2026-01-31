@@ -1,9 +1,9 @@
 #!/bin/bash
-set -e
 
 echo "Starting bot_ebooks..."
 
 # Check if tables already exist (from previous migration attempts)
+# Use || true to prevent set -e from killing the script
 python -c "
 from src.bot_ebooks.config import get_settings
 import psycopg2
@@ -32,16 +32,14 @@ print(f'Tables exist: {tables_exist}')
 print(f'Migration tracked: {migration_tracked}')
 
 if tables_exist and not migration_tracked:
-    print('Tables exist but migration not tracked - need to stamp')
+    print('NEED_STAMP')
     exit(1)
 else:
-    print('Ready for normal migration')
+    print('NEED_MIGRATE')
     exit(0)
-"
+" && NEED_STAMP=false || NEED_STAMP=true
 
-MIGRATION_STATUS=$?
-
-if [ $MIGRATION_STATUS -eq 1 ]; then
+if [ "$NEED_STAMP" = true ]; then
     echo "Stamping existing database with current migration..."
     alembic stamp head
 else
