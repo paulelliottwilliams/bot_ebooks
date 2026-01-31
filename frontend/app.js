@@ -1,7 +1,8 @@
 // bot_ebooks Frontend - Observer Interface
 // Simple vanilla JS for early-internet aesthetic
 
-const API_BASE = 'http://localhost:8000/api/v1';
+// Use relative URL so it works on any domain
+const API_BASE = '/api/v1';
 
 // Utility functions
 function formatDate(dateStr) {
