@@ -1,0 +1,401 @@
+/* Early internet aesthetic - simple, functional, readable */
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    font-family: Georgia, "Times New Roman", Times, serif;
+    font-size: 16px;
+    line-height: 1.6;
+    color: #000;
+    background-color: #fff;
+    margin: 0;
+    padding: 0;
+}
+
+.container {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+/* Header */
+header {
+    border-bottom: 1px solid #000;
+    padding-bottom: 10px;
+    margin-bottom: 20px;
+}
+
+header h1 {
+    margin: 0;
+    font-size: 28px;
+    font-weight: normal;
+}
+
+header h1 a {
+    color: #000;
+    text-decoration: none;
+}
+
+header h1 a:hover {
+    text-decoration: underline;
+}
+
+.tagline {
+    margin: 5px 0 0 0;
+    font-style: italic;
+    color: #666;
+}
+
+/* Layout */
+.sidebar {
+    float: left;
+    width: 200px;
+    padding-right: 20px;
+    border-right: 1px solid #ccc;
+}
+
+main {
+    margin-left: 220px;
+    padding-left: 20px;
+}
+
+/* Navigation */
+nav h3 {
+    font-size: 14px;
+    margin: 15px 0 5px 0;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: #666;
+}
+
+nav ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+nav ul li {
+    margin: 3px 0;
+}
+
+nav a {
+    color: #0000EE;
+    text-decoration: none;
+}
+
+nav a:visited {
+    color: #551A8B;
+}
+
+nav a:hover {
+    text-decoration: underline;
+}
+
+/* Main content */
+main h2 {
+    font-size: 22px;
+    border-bottom: 1px solid #ccc;
+    padding-bottom: 5px;
+    margin-top: 0;
+}
+
+main h3 {
+    font-size: 18px;
+    margin-top: 25px;
+}
+
+/* Links */
+a {
+    color: #0000EE;
+}
+
+a:visited {
+    color: #551A8B;
+}
+
+a:hover {
+    text-decoration: underline;
+}
+
+/* Tables */
+table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 15px 0;
+    font-size: 14px;
+}
+
+th, td {
+    border: 1px solid #ccc;
+    padding: 8px;
+    text-align: left;
+}
+
+th {
+    background-color: #f5f5f5;
+    font-weight: bold;
+}
+
+tr:hover {
+    background-color: #ffffcc;
+}
+
+/* Ebook cards */
+.ebook-item {
+    border: 1px solid #ccc;
+    padding: 15px;
+    margin: 10px 0;
+    background-color: #fafafa;
+}
+
+.ebook-item h4 {
+    margin: 0 0 5px 0;
+    font-size: 16px;
+}
+
+.ebook-item h4 a {
+    color: #0000EE;
+    text-decoration: none;
+}
+
+.ebook-item h4 a:hover {
+    text-decoration: underline;
+}
+
+.ebook-meta {
+    font-size: 13px;
+    color: #666;
+    margin: 5px 0;
+}
+
+.ebook-description {
+    font-size: 14px;
+    margin: 10px 0 0 0;
+}
+
+/* Scores */
+.score {
+    font-family: "Courier New", Courier, monospace;
+    font-weight: bold;
+}
+
+.score-high {
+    color: #006400;
+}
+
+.score-mid {
+    color: #B8860B;
+}
+
+.score-low {
+    color: #8B0000;
+}
+
+/* Status badges */
+.status {
+    display: inline-block;
+    padding: 2px 6px;
+    font-size: 12px;
+    font-family: "Courier New", Courier, monospace;
+}
+
+.status-published {
+    background-color: #90EE90;
+    border: 1px solid #006400;
+}
+
+.status-pending {
+    background-color: #FFFACD;
+    border: 1px solid #B8860B;
+}
+
+.status-rejected {
+    background-color: #FFB6C1;
+    border: 1px solid #8B0000;
+}
+
+/* Stats box */
+#stats {
+    font-size: 13px;
+    background-color: #f5f5f5;
+    padding: 10px;
+    border: 1px solid #ccc;
+}
+
+#stats p {
+    margin: 3px 0;
+}
+
+/* Evaluation display */
+.evaluation-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin: 15px 0;
+}
+
+.eval-dimension {
+    border: 1px solid #ccc;
+    padding: 10px;
+    background-color: #fafafa;
+}
+
+.eval-dimension h5 {
+    margin: 0 0 5px 0;
+    font-size: 14px;
+    text-transform: uppercase;
+}
+
+.eval-dimension .score {
+    font-size: 24px;
+}
+
+.eval-dimension .feedback {
+    font-size: 13px;
+    font-style: italic;
+    color: #444;
+    margin-top: 5px;
+}
+
+/* Content display */
+.ebook-content {
+    font-family: Georgia, "Times New Roman", Times, serif;
+    line-height: 1.8;
+    max-width: 700px;
+}
+
+.ebook-content h1,
+.ebook-content h2,
+.ebook-content h3 {
+    margin-top: 30px;
+}
+
+.ebook-content p {
+    text-align: justify;
+}
+
+/* Footer */
+footer {
+    clear: both;
+    margin-top: 40px;
+    font-size: 13px;
+    color: #666;
+}
+
+footer hr {
+    border: none;
+    border-top: 1px solid #ccc;
+}
+
+/* Agent profile */
+.agent-profile {
+    border: 1px solid #ccc;
+    padding: 15px;
+    margin: 15px 0;
+    background-color: #fafafa;
+}
+
+.agent-profile h3 {
+    margin-top: 0;
+}
+
+.agent-stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin: 15px 0;
+}
+
+.stat-box {
+    text-align: center;
+    padding: 10px;
+    background-color: #fff;
+    border: 1px solid #ddd;
+}
+
+.stat-box .value {
+    font-size: 24px;
+    font-weight: bold;
+    font-family: "Courier New", Courier, monospace;
+}
+
+.stat-box .label {
+    font-size: 12px;
+    color: #666;
+    text-transform: uppercase;
+}
+
+/* Pagination */
+.pagination {
+    margin: 20px 0;
+    text-align: center;
+}
+
+.pagination a, .pagination span {
+    display: inline-block;
+    padding: 5px 10px;
+    margin: 0 2px;
+    border: 1px solid #ccc;
+    text-decoration: none;
+}
+
+.pagination a:hover {
+    background-color: #f5f5f5;
+}
+
+.pagination .current {
+    background-color: #000;
+    color: #fff;
+    border-color: #000;
+}
+
+/* Loading state */
+.loading {
+    color: #666;
+    font-style: italic;
+}
+
+/* Error state */
+.error {
+    color: #8B0000;
+    background-color: #FFB6C1;
+    padding: 10px;
+    border: 1px solid #8B0000;
+}
+
+/* Empty state */
+.empty {
+    color: #666;
+    font-style: italic;
+    padding: 20px;
+    text-align: center;
+    border: 1px dashed #ccc;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .sidebar {
+        float: none;
+        width: 100%;
+        border-right: none;
+        border-bottom: 1px solid #ccc;
+        padding-right: 0;
+        padding-bottom: 20px;
+        margin-bottom: 20px;
+    }
+
+    main {
+        margin-left: 0;
+        padding-left: 0;
+    }
+
+    .evaluation-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .agent-stats {
+        grid-template-columns: 1fr;
+    }
+}
