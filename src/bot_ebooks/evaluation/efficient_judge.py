@@ -1,7 +1,7 @@
-"""Token-efficient single-pass LLM Judge.
+"""Market-focused LLM Judge.
 
-Optimized for minimal API usage while maintaining evaluation quality.
-Uses a single API call with a compact prompt.
+Evaluates ebooks like a publisher would: Will people pay money for this?
+Uses full content (no truncation) with Haiku for cost efficiency.
 """
 
 import json
@@ -16,70 +16,79 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..config import get_settings
 from ..models.ebook import Ebook, EbookStatus
 from ..models.evaluation import Evaluation, EvaluationStatus
-from .rubrics import MINIMUM_OVERALL_SCORE, compute_overall_score
 
 settings = get_settings()
 
 
-# Compact system prompt - much shorter than the original
-EFFICIENT_SYSTEM_PROMPT = """You evaluate ebooks on 4 dimensions (1-10 scale):
-- NOVELTY (30%): Originality of ideas. 7=fresh perspective, 9+=groundbreaking
-- STRUCTURE (20%): Organization/flow. 7=well-organized, 9+=masterful
-- THOROUGHNESS (30%): Depth/evidence. 7=comprehensive, 9+=exhaustive
-- CLARITY (20%): Writing quality. 7=clear prose, 9+=exceptional
+# Market-focused evaluation prompt
+# Asks the question publishers actually care about: would someone BUY this?
+MARKET_SYSTEM_PROMPT = """You are a acquisitions editor at a publishing house deciding whether to publish an ebook.
 
-Respond ONLY with JSON: {"n":score,"s":score,"t":score,"c":score,"f":"one sentence overall"}"""
+Your job is to predict: Would real readers PAY MONEY for this?
+
+Score 1-10 on these dimensions:
+- VALUE (40%): Does this solve a real problem or provide genuine insight readers would pay for? Is it better than free blog posts or Wikipedia? Score 7+ only if you'd recommend a friend buy it.
+- QUALITY (30%): Is the writing professional? Are claims supported? Would readers feel satisfied or ripped off? Score 7+ only for work that meets professional publishing standards.
+- MARKETABILITY (30%): Is there a clear audience who would want this? Does the title/premise attract interest? Score 7+ only if you can identify WHO would buy this and WHY.
+
+BE HARSH. Most submissions should score 4-6. A 7 means "yes, publish this." An 8+ is genuinely good. A 9+ would be a bestseller.
+
+Think like a businessperson spending money to publish this, not an academic grading a paper.
+
+Respond ONLY with JSON: {"v":score,"q":score,"m":score,"f":"One sentence: would you publish this and why/why not?"}"""
 
 
-EFFICIENT_USER_PROMPT = """Title: {title}
+MARKET_USER_PROMPT = """SUBMISSION FOR REVIEW
+
+Title: {title}
 Category: {category}
-Words: {word_count}
+Length: {word_count:,} words
 
-{content}"""
+---
+{content}
+---
+
+Would you publish this? Score it."""
 
 
 class EfficientJudge:
     """
-    Token-efficient LLM Judge.
+    Market-focused LLM Judge.
 
-    Optimizations:
-    1. Single API call (not 10)
-    2. Minimal system prompt (~100 tokens vs ~800)
-    3. Compact JSON output format (~50 tokens vs ~500)
-    4. Aggressive content truncation with smart sampling
-    5. Uses Haiku for cost efficiency (or configurable)
+    Key design decisions:
+    1. FULL CONTENT - No truncation, because you can't evaluate an argument
+       without reading all of it
+    2. MARKET FOCUS - Asks "would people pay for this?" not academic metrics
+    3. HARSH CALIBRATION - Most books should score 4-6, not 7-8
+    4. USES HAIKU - ~10x cheaper than Sonnet, handles up to 200k tokens
+
+    Cost estimate for a 50k word book (~65k tokens):
+    - Haiku: ~$0.065 input + ~$0.002 output = ~$0.07 per evaluation
+    - Sonnet would be: ~$0.20 input + ~$0.015 output = ~$0.22 per evaluation
     """
+
+    # Minimum score to publish (weighted average must meet this)
+    PUBLISH_THRESHOLD = Decimal("6.0")  # Stricter than before
 
     def __init__(
         self,
         db: AsyncSession,
         anthropic_client: Optional[AsyncAnthropic] = None,
         model: Optional[str] = None,
-        max_content_tokens: int = 8000,  # Much smaller default
     ):
         self.db = db
         self.anthropic = anthropic_client or AsyncAnthropic(
             api_key=settings.effective_anthropic_key or settings.anthropic_api_key
         )
-        # Default to Haiku for efficiency - ~20x cheaper than Sonnet
+        # Haiku handles up to 200k context, plenty for any ebook
         self.model = model or "claude-3-5-haiku-20241022"
-        self.prompt_version = "v3.0-efficient"
-        # ~4 chars per token, so 8000 tokens ≈ 32000 chars
-        self.max_content_chars = max_content_tokens * 4
+        self.prompt_version = "v4.0-market"
 
     async def evaluate_ebook(self, ebook: Ebook) -> Evaluation:
         """
-        Run efficient single-pass evaluation.
+        Run market-focused evaluation on FULL content.
 
-        Token budget (approximate):
-        - System prompt: ~100 tokens
-        - User prompt overhead: ~50 tokens
-        - Content: ~8000 tokens (configurable)
-        - Output: ~100 tokens
-        Total: ~8,250 tokens per evaluation
-
-        Compare to multi-judge: ~380,000 tokens per evaluation
-        That's ~46x more efficient!
+        No truncation - the model reads the entire book.
         """
         evaluation = await self._get_or_create_evaluation(ebook.id)
 
@@ -88,52 +97,52 @@ class EfficientJudge:
             evaluation.started_at = datetime.utcnow()
             await self.db.commit()
 
-            # Build compact prompt
-            content = self._smart_truncate(ebook.content_markdown)
-
-            prompt = EFFICIENT_USER_PROMPT.format(
+            # Send FULL content - no truncation
+            prompt = MARKET_USER_PROMPT.format(
                 title=ebook.title,
                 category=ebook.category,
                 word_count=ebook.word_count,
-                content=content,
+                content=ebook.content_markdown,
             )
 
-            # Single API call
+            # Single API call with full content
             response = await self.anthropic.messages.create(
                 model=self.model,
-                system=EFFICIENT_SYSTEM_PROMPT,
+                system=MARKET_SYSTEM_PROMPT,
                 messages=[{"role": "user", "content": prompt}],
-                max_tokens=200,  # Compact output
+                max_tokens=200,
             )
 
             response_text = response.content[0].text
 
-            # Parse compact response
-            scores = self._parse_compact_response(response_text)
+            # Parse response
+            scores = self._parse_response(response_text)
 
-            # Compute overall score
-            overall = compute_overall_score({
-                "novelty": scores["novelty"],
-                "structure": scores["structure"],
-                "thoroughness": scores["thoroughness"],
-                "clarity": scores["clarity"],
-            })
+            # Compute weighted overall score
+            # VALUE: 40%, QUALITY: 30%, MARKETABILITY: 30%
+            overall = (
+                Decimal(str(scores["value"])) * Decimal("0.40") +
+                Decimal(str(scores["quality"])) * Decimal("0.30") +
+                Decimal(str(scores["marketability"])) * Decimal("0.30")
+            ).quantize(Decimal("0.01"))
 
             # Update evaluation record
+            # Map new dimensions to existing DB columns
             evaluation.status = EvaluationStatus.COMPLETED
             evaluation.completed_at = datetime.utcnow()
 
-            evaluation.novelty_score = Decimal(str(scores["novelty"]))
-            evaluation.structure_score = Decimal(str(scores["structure"]))
-            evaluation.thoroughness_score = Decimal(str(scores["thoroughness"]))
-            evaluation.clarity_score = Decimal(str(scores["clarity"]))
+            # Store in existing columns (repurposed):
+            # novelty -> value, structure -> quality, thoroughness -> marketability
+            evaluation.novelty_score = Decimal(str(scores["value"]))
+            evaluation.structure_score = Decimal(str(scores["quality"]))
+            evaluation.thoroughness_score = Decimal(str(scores["marketability"]))
+            evaluation.clarity_score = Decimal(str(scores["marketability"]))  # duplicate for compatibility
             evaluation.overall_score = overall
 
-            # Compact feedback
             evaluation.overall_summary = scores.get("feedback", "")
-            evaluation.novelty_feedback = ""
-            evaluation.structure_feedback = ""
-            evaluation.thoroughness_feedback = ""
+            evaluation.novelty_feedback = f"Value score: {scores['value']}/10"
+            evaluation.structure_feedback = f"Quality score: {scores['quality']}/10"
+            evaluation.thoroughness_feedback = f"Marketability score: {scores['marketability']}/10"
             evaluation.clarity_feedback = ""
 
             evaluation.judge_model = self.model
@@ -143,10 +152,15 @@ class EfficientJudge:
                 "response": response_text,
                 "input_tokens": response.usage.input_tokens,
                 "output_tokens": response.usage.output_tokens,
+                "dimensions": {
+                    "value": scores["value"],
+                    "quality": scores["quality"],
+                    "marketability": scores["marketability"],
+                },
             }
 
-            # Update ebook status
-            if overall >= MINIMUM_OVERALL_SCORE:
+            # Stricter publish threshold
+            if overall >= self.PUBLISH_THRESHOLD:
                 ebook.status = EbookStatus.PUBLISHED
                 ebook.published_at = datetime.utcnow()
             else:
@@ -184,50 +198,8 @@ class EfficientJudge:
 
         return evaluation
 
-    def _smart_truncate(self, content: str) -> str:
-        """
-        Smart truncation that preserves signal while minimizing tokens.
-
-        Strategy:
-        - Keep title/intro (first 20%)
-        - Sample key sections from middle (40%)
-        - Keep conclusion (20%)
-        - Reserve 20% for section headers throughout
-        """
-        if len(content) <= self.max_content_chars:
-            return content
-
-        # Calculate budgets
-        intro_budget = int(self.max_content_chars * 0.25)
-        middle_budget = int(self.max_content_chars * 0.35)
-        conclusion_budget = int(self.max_content_chars * 0.20)
-        headers_budget = int(self.max_content_chars * 0.20)
-
-        # Extract intro
-        intro = content[:intro_budget]
-
-        # Extract conclusion
-        conclusion = content[-conclusion_budget:]
-
-        # Extract section headers (lines starting with #)
-        headers = []
-        for line in content.split('\n'):
-            if line.strip().startswith('#'):
-                headers.append(line.strip())
-        headers_text = '\n'.join(headers[:20])  # Max 20 headers
-        if len(headers_text) > headers_budget:
-            headers_text = headers_text[:headers_budget]
-
-        # Sample from middle
-        middle_start = len(content) // 3
-        middle = content[middle_start:middle_start + middle_budget]
-
-        truncation_note = f"\n[...truncated from {len(content):,} chars...]\n"
-
-        return f"{intro}{truncation_note}STRUCTURE:\n{headers_text}{truncation_note}{middle}{truncation_note}{conclusion}"
-
-    def _parse_compact_response(self, response_text: str) -> dict:
-        """Parse the compact JSON response."""
+    def _parse_response(self, response_text: str) -> dict:
+        """Parse the JSON response."""
         # Extract JSON
         json_match = re.search(r'\{[^{}]*\}', response_text)
         if not json_match:
@@ -238,12 +210,10 @@ class EfficientJudge:
         except json.JSONDecodeError as e:
             raise ValueError(f"Invalid JSON: {e}")
 
-        # Map compact keys to full names
         return {
-            "novelty": self._validate_score(data.get("n", data.get("novelty", 5))),
-            "structure": self._validate_score(data.get("s", data.get("structure", 5))),
-            "thoroughness": self._validate_score(data.get("t", data.get("thoroughness", 5))),
-            "clarity": self._validate_score(data.get("c", data.get("clarity", 5))),
+            "value": self._validate_score(data.get("v", data.get("value", 5))),
+            "quality": self._validate_score(data.get("q", data.get("quality", 5))),
+            "marketability": self._validate_score(data.get("m", data.get("marketability", 5))),
             "feedback": data.get("f", data.get("feedback", "")),
         }
 
@@ -253,4 +223,4 @@ class EfficientJudge:
             s = float(score)
             return max(1.0, min(10.0, s))
         except (TypeError, ValueError):
-            return 5.0  # Default to middle score
+            return 5.0
