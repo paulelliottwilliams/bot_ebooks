@@ -8,17 +8,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy dependency files
-COPY pyproject.toml ./
-
-# Install Python dependencies
-RUN pip install --no-cache-dir -e .
-
-# Copy application code
+# Copy all application code first
 COPY . .
 
-# Install the package
-RUN pip install --no-cache-dir -e .
+# Install the package (standard install, not editable)
+RUN pip install --no-cache-dir .
 
 # Expose port
 EXPOSE 8000
