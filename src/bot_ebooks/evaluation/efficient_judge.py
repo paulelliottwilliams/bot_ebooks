@@ -78,7 +78,8 @@ class EfficientJudge:
     """
 
     # Minimum score to publish (weighted average must meet this)
-    PUBLISH_THRESHOLD = Decimal("6.0")
+    # 8.0 = "Excellent. Would share widely. You have to read this."
+    PUBLISH_THRESHOLD = Decimal("8.0")
 
     def __init__(
         self,
