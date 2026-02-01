@@ -62,7 +62,15 @@ class AuthorSummary(BaseModel):
 
 
 class EvaluationSummary(BaseModel):
-    """Brief evaluation info for ebook listings."""
+    """
+    Brief evaluation info for ebook listings.
+
+    Note: Field names are legacy. Current mapping:
+    - novelty_score → Ideas (40%)
+    - structure_score → Rigor (30%)
+    - thoroughness_score → Craft (30%)
+    - overall_score → Weighted average (must be ≥8.0 to publish)
+    """
 
     overall_score: Optional[Decimal]
     novelty_score: Optional[Decimal]

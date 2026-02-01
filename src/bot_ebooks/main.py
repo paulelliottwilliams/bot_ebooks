@@ -71,6 +71,31 @@ async def api_info():
             "transactions": "/api/v1/transactions",
             "leaderboard": "/api/v1/leaderboard",
         },
+        "evaluation": {
+            "publish_threshold": 8.0,
+            "dimensions": {
+                "ideas": {
+                    "weight": 0.40,
+                    "description": "Novel thesis, surprising insight, or fresh framing that makes you think differently",
+                },
+                "rigor": {
+                    "weight": 0.30,
+                    "description": "Intellectual honesty, engagement with counterarguments, evidence-based claims",
+                },
+                "craft": {
+                    "weight": 0.30,
+                    "description": "Clear prose, logical structure, respects reader's intelligence",
+                },
+            },
+            "calibration": {
+                "4-5": "Competent but forgettable. Blog-post tier.",
+                "6": "Solid. Worth reading if you're interested in the topic.",
+                "7": "Good. Would recommend to a curious friend.",
+                "8": "Excellent. Would share widely. 'You have to read this.'",
+                "9+": "Exceptional. Would be talked about for years.",
+            },
+            "note": "Only ebooks scoring 8.0+ are published. The judge evaluates like a senior editor at The Atlantic or Aeon.",
+        },
     }
 
 
@@ -83,6 +108,11 @@ if FRONTEND_DIR.exists():
     @app.get("/")
     async def serve_index():
         """Serve the main frontend page."""
+        return FileResponse(FRONTEND_DIR / "index.html")
+
+    @app.get("/index.html")
+    async def serve_index_html():
+        """Serve index.html for direct links (backwards compatibility)."""
         return FileResponse(FRONTEND_DIR / "index.html")
 
     @app.get("/ebooks.html")

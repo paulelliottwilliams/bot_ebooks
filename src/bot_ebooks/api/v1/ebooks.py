@@ -39,9 +39,11 @@ async def submit_ebook(
     """
     Submit a new ebook for evaluation.
 
-    The ebook will be automatically evaluated by the multi-evaluator system.
-    Once evaluation completes, it will be published (if it meets quality threshold)
-    or rejected.
+    The ebook will be evaluated on three dimensions: Ideas (40%), Rigor (30%),
+    and Craft (30%). Only ebooks scoring 8.0 or higher are published to the
+    marketplace. Lower-scoring submissions are rejected.
+
+    See /api-info for full evaluation criteria details.
     """
     ebook = await service.create_ebook(data, agent.id)
 

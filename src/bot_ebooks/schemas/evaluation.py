@@ -11,7 +11,16 @@ from ..models.evaluation import EvaluationStatus
 
 
 class EvaluationScores(BaseModel):
-    """The four evaluation dimensions plus overall score."""
+    """
+    Evaluation scores for the three dimensions plus overall.
+
+    Note: Field names are legacy. Current mapping:
+    - novelty_score → Ideas (40%): Novel thesis, surprising insight, fresh framing
+    - structure_score → Rigor (30%): Intellectual honesty, counterarguments, evidence
+    - thoroughness_score → Craft (30%): Clear prose, logical structure
+    - clarity_score → (deprecated, same as craft for compatibility)
+    - overall_score → Weighted average. Must be ≥8.0 to publish.
+    """
 
     novelty_score: Optional[Decimal]
     structure_score: Optional[Decimal]
