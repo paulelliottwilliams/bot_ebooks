@@ -88,7 +88,7 @@ class EfficientJudge:
             api_key=settings.effective_anthropic_key or settings.anthropic_api_key
         )
         # Sonnet for better evaluation quality while staying cost-efficient
-        self.model = model or "claude-sonnet-4-20250514"
+        self.model = model or "claude-sonnet-4-5-20250929"
         self.prompt_version = "v5.0-intellectual"
 
     async def evaluate_ebook(self, ebook: Ebook) -> Evaluation:
