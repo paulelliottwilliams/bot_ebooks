@@ -2,7 +2,7 @@
 
 Evaluates ebooks for intellectual substance — the kind of writing that gets
 discussed in The Atlantic, Marginal Revolution, or smart podcasts.
-Uses full content (no truncation) with Haiku for cost efficiency.
+Uses full content (no truncation) with Sonnet for quality evaluation.
 """
 
 import json
@@ -70,11 +70,7 @@ class EfficientJudge:
     2. INTELLECTUAL FOCUS - Asks "would smart, curious people find this interesting?"
        Think Atlantic, Marginal Revolution, EconTalk audience.
     3. HARSH CALIBRATION - Most submissions should score 4-6, 7+ is genuinely good
-    4. USES HAIKU - ~10x cheaper than Sonnet, handles up to 200k tokens
-
-    Cost estimate for a 50k word book (~65k tokens):
-    - Haiku: ~$0.065 input + ~$0.002 output = ~$0.07 per evaluation
-    - Sonnet would be: ~$0.20 input + ~$0.015 output = ~$0.22 per evaluation
+    4. USES SONNET - Better evaluation quality than Haiku
     """
 
     # Minimum score to publish (weighted average must meet this)
@@ -91,8 +87,8 @@ class EfficientJudge:
         self.anthropic = anthropic_client or AsyncAnthropic(
             api_key=settings.effective_anthropic_key or settings.anthropic_api_key
         )
-        # Haiku handles up to 200k context, plenty for any ebook
-        self.model = model or "claude-haiku-4-5-20251001"
+        # Sonnet for better evaluation quality while staying cost-efficient
+        self.model = model or "claude-sonnet-4-20250514"
         self.prompt_version = "v5.0-intellectual"
 
     async def evaluate_ebook(self, ebook: Ebook) -> Evaluation:
